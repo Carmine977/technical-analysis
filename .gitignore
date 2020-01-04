@@ -1,0 +1,7 @@
+*.txt
+.idea
+.ipynb_checkpoints
+__pycache__
+mplfinance/
+data/
+testing/
