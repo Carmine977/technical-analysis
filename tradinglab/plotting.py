@@ -1,43 +1,12 @@
 import numpy as np
 import pandas as pd
-import pickle
-import os
 from datetime import datetime
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from matplotlib.dates import date2num
 from matplotlib.lines import Line2D
 from matplotlib.patches import Rectangle
-
-
-def load_stock_price(stock, archive, date_start=None, date_end=None, folder='data'):
-    """ Load stock price from pickle file and return it as pandas DataFrame """
-
-    with open(os.path.join(folder, '{}.pkl'.format(archive)),'rb') as f:
-        data = pickle.load(f)
-
-    if date_start is not None:
-        T_start = datetime.strptime(date_start, '%Y-%m-%d')
-    else:
-        T_start = data.index[0]
-
-    if date_end is not None:
-        T_end = datetime.strptime(date_end, '%Y-%m-%d')
-    else:
-        T_end = data.index[-1]
-
-    T_ix = (data.index >= T_start) & (data.index <= T_end)
-
-    openp = data.loc[T_ix, 'Open'][stock].values
-    highp = data.loc[T_ix, 'High'][stock].values
-    lowp = data.loc[T_ix, 'Low'][stock].values
-    closep = data.loc[T_ix, 'Close'][stock].values
-    adj_closep = data.loc[T_ix, 'Adj Close'][stock].values
-    volumep = data.loc[T_ix, 'Volume'][stock].values
-
-    prices = pd.DataFrame(np.array([openp, highp, lowp, closep, adj_closep, volumep]).T, index=data.index[T_ix],
-                          columns=['Open', 'High', 'Low', 'Close', 'Adj Close', 'Volume'])
-    return prices
+from tradinglab.statistics import *
 
 
 def get_ohlc(df):
@@ -59,45 +28,6 @@ def get_ohlc(df):
         x += 1
 
     return ohlc
-
-
-def candlestick_ohlc(ax, quotes, width=0.2, colorup='k', colordown='r',
-                     alpha=1.0):
-    """
-    Plot the time, open, high, low, close as a vertical line ranging
-    from low to high.  Use a rectangular bar to represent the
-    open-close span.  If close >= open, use colorup to color the bar,
-    otherwise use colordown
-
-    Parameters
-    ----------
-    ax : `Axes`
-        an Axes instance to plot to
-    quotes : sequence of (time, open, high, low, close, ...) sequences
-        As long as the first 5 elements are these values,
-        the record can be as long as you want (e.g., it may store volume).
-
-        time must be in float days format - see date2num
-
-    width : float
-        fraction of a day for the rectangle width
-    colorup : color
-        the color of the rectangle where close >= open
-    colordown : color
-         the color of the rectangle where close <  open
-    alpha : float
-        the rectangle alpha level
-
-    Returns
-    -------
-    ret : tuple
-        returns (lines, patches) where lines is a list of lines
-        added and patches is a list of the rectangle patches added
-
-    """
-    return _candlestick(ax, quotes, width=width, colorup=colorup,
-                        colordown=colordown,
-                        alpha=alpha, ochl=False)
 
 
 def _candlestick(ax, quotes, width=0.2, colorup='k', colordown='r',
@@ -180,37 +110,44 @@ def _candlestick(ax, quotes, width=0.2, colorup='k', colordown='r',
     return lines, patches
 
 
-def weekday_candlestick(stock_data, ax, stock_name, fmt='%b %d', freq=7, **kwargs):
-    """ Wrapper function for matplotlib.finance.candlestick_ohlc that artificially spaces data to avoid gaps from weekends.
-        Takes data in the format required by matplotlib.finance.candlestick_ohlc """
-    # Convert data to numpy array
-    ohlc_data = get_ohlc(stock_data)
-    ohlc_data_arr = np.array(ohlc_data)
-    ohlc_data_arr2 = np.hstack(
-        [np.arange(len(ohlc_data_arr))[:,np.newaxis], ohlc_data_arr[:,1:]])
-    ndays = ohlc_data_arr2[:,0]  # array([0, 1, 2, ... n-2, n-1, n])
+def candlestick_ohlc(ax, quotes, width=0.2, colorup='k', colordown='r',
+                     alpha=1.0):
+    """
+    Plot the time, open, high, low, close as a vertical line ranging
+    from low to high.  Use a rectangular bar to represent the
+    open-close span.  If close >= open, use colorup to color the bar,
+    otherwise use colordown
 
-    # Convert matplotlib date numbers to strings based on `fmt`
-    dates = mdates.num2date(ohlc_data_arr[:, 0])
-    date_strings = []
-    for date in dates:
-        date_strings.append(date.strftime(fmt))
+    Parameters
+    ----------
+    ax : `Axes`
+        an Axes instance to plot to
+    quotes : sequence of (time, open, high, low, close, ...) sequences
+        As long as the first 5 elements are these values,
+        the record can be as long as you want (e.g., it may store volume).
 
-    # Plot candlestick chart
-    candlestick_ohlc(ax, ohlc_data_arr2, colorup='#77d879', colordown='#db3f3f', **kwargs)
+        time must be in float days format - see date2num
 
-    # Format x axis
-    ax.set_xticks(ndays[::freq])
-    ax.set_xticklabels(date_strings[::freq], rotation=90, ha='center')
-    #ax.set_xticklabels([dt.strftime("%Y-%m-%d") for dt in stock_data.index], rotation=0)
-    #fig.autofmt_xdate()
-    ax.set_xlim(ndays.min(), ndays.max()+1)
-    ax.grid(alpha=0.2)
-    plt.title(stock_name)
-    plt.xlabel('Date')
-    plt.ylabel('Price')
-    plt.show()
-    
+    width : float
+        fraction of a day for the rectangle width
+    colorup : color
+        the color of the rectangle where close >= open
+    colordown : color
+         the color of the rectangle where close <  open
+    alpha : float
+        the rectangle alpha level
+
+    Returns
+    -------
+    ret : tuple
+        returns (lines, patches) where lines is a list of lines
+        added and patches is a list of the rectangle patches added
+
+    """
+    return _candlestick(ax, quotes, width=width, colorup=colorup,
+                        colordown=colordown,
+                        alpha=alpha, ochl=False)
+
     
 class trading_chart():
     
@@ -234,15 +171,14 @@ class trading_chart():
         self._cndlstck_called = True
         self.index = df.index
         
-    def mav(self, df, var='Close', window=20):
-        # compute moving average
-        mav = df[var].rolling(window=window).mean()
-        mav.name = 'MAV{}'.format(window)
-        self.trace.append((self.n_axis, mav.values, 'MAV{}'.format(window)))       
-        self.values = mav
+    def MAV(self, df, var='Close', window=20, **kwargs):
+        ''' Moving average. '''
+        mav = MAV(df, var, window)  
+        self.trace.append((self.n_axis, mav.values, mav.name, kwargs))          
+        self.values = mav.values
         self.index = mav.index
         
-    def hline(self, val, var='Close'):
+    def hline(self, val, var='Close', **kwargs):
         ''' 
         Plot an horizontal line. The input can be a numeric value or a string date. 
         In the latter the price value at the corresponding date is selected. 
@@ -255,25 +191,29 @@ class trading_chart():
             val = self.df.loc[val][var]
         
         y = pd.Series([val] * len(self.index))
-        self.trace.append((self.n_axis, y, '{}'.format(val)))
+        self.trace.append((self.n_axis, y, '{:.3f}'.format(val), kwargs))
         self.values = y     
+    
+    def line(self, date=[None, None], anchor=['Close', 'Close'], **kwargs):
+        date[0] = self.index[0] if date[0] is None else date[0] 
+        date[1] = self.index[-1] if date[1] is None else date[1]
+        x = [np.where(self.index==date[0])[0][0], np.where(self.index==date[1])[0][0]]
         
-    def line(self, date=['2019-12-02', '2019-12-13'], anchor=['Close', 'Close'], style='k--'):
-        x = [np.where(price.index==date[0])[0][0], np.where(price.index==date[1])[0][0]]
+        y = list()
         if isinstance(anchor[0], str):
-            y[0] = self.df.loc[date[0]][anchor[0]]
+            y.append(self.df.loc[date[0]][anchor[0]])
         else:
-            y[0] = anchor[0]
+            y.append(anchor[0])
         
         if isinstance(anchor[1], str):
-            y[1] = self.df.loc[date[1]][anchor[1]]
+            y.append(self.df.loc[date[1]][anchor[1]])
         else:
-            y[1] = anchor[1]
+            y.append(anchor[1])
             
         coefficients = np.polyfit(x, y, 1)
         polynomial = np.poly1d(coefficients)
         y_axis = polynomial(range(len(self.index)))
-        self.trace.append((self.n_axis, y_axis, 'hline', style))
+        self.trace.append((self.n_axis, y_axis, 'line', kwargs))
         self.values = y_axis      
     
     def _get_color(self, pclose, popen):
@@ -361,16 +301,33 @@ class trading_chart():
             self.fig, ax = plt.subplots(n_plots, 1, gridspec_kw = {'height_ratios': [2]+[1]*(n_plots-1)}, 
                                    sharex=True, figsize=self.figsize) 
             
-        # plot canflestick only if instantiated
+        # plot candlestick only if instantiated
         if self._cndlstck_called:
             ohlc_data = np.array(get_ohlc(self.df))
             ohlc_data_arr = np.hstack([np.arange(len(ohlc_data))[:,np.newaxis], ohlc_data[:, 1:]])
             candlestick_ohlc(ax[0], ohlc_data_arr, colorup=self.colorup, colordown=self.colordown, width=self.width)
-
+        
         # plot other traces
-        for tr in self.trace:
+        for tr in self.trace:            
             if tr[2] != 'Volume':
-                ax[tr[0]].plot(tr[1], label=tr[2])
+                # set default plot options
+                color = None
+                linestyle = '-'
+                linewidth = 1.
+                alpha = 1.
+                # set user defined plot options  
+                if len(tr) > 3:
+                    for key in tr[3]:
+                        if key=='c':
+                            color = tr[3][key]
+                        if key=='linestyle':
+                            linestyle = tr[3][key]
+                        if key=='linewidth':
+                            linewidth = tr[3][key]
+                        if key=='alpha':
+                            alpha = tr[3][key]
+            
+                ax[tr[0]].plot(tr[1], label=tr[2], c=color, linestyle=linestyle, linewidth=linewidth, alpha=alpha)
                 ax[tr[0]].legend(loc='upper left')
             else:
                 # volume bars
@@ -400,6 +357,6 @@ class trading_chart():
     def save(self, figname='chart'):
         self.build_chart()
         plt.close()
-        self.fig.savefig(figname+'.png') 
-        
+        self.fig.savefig(figname+'.png')         
 
+    
